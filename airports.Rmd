@@ -1,0 +1,67 @@
+---
+title: "Airports"
+output: html_notebook
+---
+
+
+```{r}
+library(data.table)
+library(tidyverse)
+library(openxlsx)
+
+dir <- "C:/Users/CLam/Desktop/trends-airports/Data"
+
+# Enplanements
+compile.faa.enplanements <- function() {
+  efiles <- list.files(dir, pattern = "-commercial-service-enplanements.xlsx", full.names = T)
+  dts <- NULL
+  for (efile in efiles) {
+    fileyrabr <- basename(efile) %>% str_extract("\\d+")
+    fileyr <- fileyrabr %>% paste0("20", .)
+    dt <- read.xlsx(efile) %>% as.data.table
+    cols <- c(colnames(dt)[1:8], colnames(dt)[grep(fileyrabr, colnames(dt))])
+    dtn <- dt[!is.na(Hub), ..cols][, year := fileyr]
+    colnames(dtn) <- c("Rank", "RO", "ST", "Locid", "City", "Airportname", "SL", "Hub", "enplanements", "year")
+    dtn[, enplanements := as.numeric(enplanements)]
+    ifelse(is.null(dts), dts <- dtn, dts <- rbindlist(list(dts, dtn), use.names = T))
+  }
+  return(dts)
+}
+
+compile.faa.enplanement.hub <- function(type) {
+  dts <- compile.faa.enplanements()
+  
+  if (type == "large") {
+    # large hubs
+    lghubs <- unique(dts[year == max(year) & Hub == "L", .(RO, ST, Locid)]) # current large hubs data table
+    lgdf <- dts[year == max(year) & Hub == "L", select(.SD, Rank:SL)] # current large hub 'template' You can use dplyr methods within data.table!
+    dts2 <- copy(dts)
+    dtss <- dts2[lghubs, on = c("RO", "ST", "Locid")] # isolate large hubs data
+  } else if (type == "peer") {
+    plh <- c("DEN", "SFO", "SEA", "CLT", "PHX", "MSP", "BOS", "BWI", "SAN", "TPA", "PDX") # Locid
+    plhubs <- unique(dts[year == max(year) & Locid %in% plh, .(RO, ST, Locid)]) # peer large hubs data table
+    lgdf <- dts[year == max(year) & Locid %in% plh, select(.SD, Rank:SL)] # current large hub 'template' You can use dplyr methods within data.table!
+    dts2 <- copy(dts)
+    dtss <- dts2[plhubs, on = c("RO", "ST", "Locid")] # isolate large hubs data
+  }
+  ldts <- dtss[, lapply(.SD, sum), .SDcols = c("enplanements"), by = .(RO, ST, Locid, year)] # reconcile data
+  ldts[lgdf, on = c("RO", "ST", "Locid"), `:=` (Rank = i.Rank, Locid = i.Locid, City = i.City, Airportname = i.Airportname, SL = i.SL)] # join data
+  ldtsc <- dcast.data.table(ldts, Rank + RO + ST + Locid + City + Airportname + SL ~ paste0("cy", year), value.var = "enplanements")
+  # calculate % change
+  cycols <- colnames(ldtsc)[grep("\\d+", colnames(ldtsc))]
+  cycols1 <- c(tail(cycols, -1), cycols[length(cycols)])
+  cycols2 <- c(head(cycols, -1), "cy2010")
+  cyname <- paste0("share_", cycols1, "-", cycols2)
+  dtcalc <- ldtsc[, (cyname) := mapply(function(x, y) (.SD[[x]]-.SD[[y]])/.SD[[y]], cycols1, cycols2, SIMPLIFY = F)]
+}
+
+ldt <- compile.faa.enplanement.hub("large")
+pldt <- compile.faa.enplanement.hub("peer")
+
+# option: write to excel file
+write.xlsx(list(LargeHubs = ldt, PeerLargeHubs = pldt), file.path(dir, paste0("PassEnplanementsbyAirport_", Sys.Date(), ".xlsx")))
+
+# to-do: add rank of % change of most recent year, decade
+```
+
+
