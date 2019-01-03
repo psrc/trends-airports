@@ -3,7 +3,6 @@ title: "Airports"
 output: html_notebook
 ---
 
-
 ```{r}
 library(data.table)
 library(tidyverse)
@@ -28,7 +27,7 @@ compile.faa.enplanements <- function() {
   return(dts)
 }
 
-compile.faa.enplanement.hub <- function(type) {
+compile.faa.enplanement.hub <- function(type) { # options: large or peer
   dts <- compile.faa.enplanements()
   
   if (type == "large") {
@@ -53,15 +52,33 @@ compile.faa.enplanement.hub <- function(type) {
   cycols2 <- c(head(cycols, -1), "cy2010")
   cyname <- paste0("share_", cycols1, "-", cycols2)
   dtcalc <- ldtsc[, (cyname) := mapply(function(x, y) (.SD[[x]]-.SD[[y]])/.SD[[y]], cycols1, cycols2, SIMPLIFY = F)]
+  # calculate ranks for most recent and post-decade % change
+  rankcols  <- colnames(dtcalc)[(length(colnames(dtcalc))-1):length(colnames(dtcalc))]
+  rankcolsnm <- paste0("rank_", rankcols)
+  dtcalcrank <- dtcalc[, (rankcolsnm) := mapply(function(x) rank(-.SD[[x]]), rankcols, SIMPLIFY = F)]
 }
+```
 
+```{r}
 ldt <- compile.faa.enplanement.hub("large")
 pldt <- compile.faa.enplanement.hub("peer")
+```
 
-# option: write to excel file
-write.xlsx(list(LargeHubs = ldt, PeerLargeHubs = pldt), file.path(dir, paste0("PassEnplanementsbyAirport_", Sys.Date(), ".xlsx")))
+```{r}
+# option: write to excel file. Run chunk
+dtlist <- list(LargeHubs = ldt, PeerLargeHubs = pldt)
+enplane.wb <- createWorkbook()
+for (d in 1:length(dtlist)) {
+  addWorksheet(enplane.wb, names(dtlist)[d])
+  modifyBaseFont(enplane.wb, fontSize = 10, fontName = "Segoe UI Semilight")
+  pct <- createStyle(numFmt="0%")
+  num <- createStyle(numFmt = "#,##0")
+  writeData(enplane.wb, names(dtlist)[d], dtlist[[d]])
+  addStyle(enplane.wb, names(dtlist)[d], style = pct, cols = str_which(colnames(dtlist[[d]]), "^share_"), rows = c(2:(nrow(dtlist[[d]])+1)), gridExpand = T)
+  addStyle(enplane.wb, names(dtlist)[d], style = num, cols = str_which(colnames(dtlist[[d]]), "^cy"), rows = c(2:(nrow(dtlist[[d]])+1)), gridExpand = T, stack = T)
+  saveWorkbook(enplane.wb, file = file.path(dir, paste0("PassEnplanementsbyAirport_", Sys.Date(), ".xlsx")), overwrite = T)
+}
 
-# to-do: add rank of % change of most recent year, decade
 ```
 
 
