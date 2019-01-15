@@ -27,36 +27,36 @@ compile.faa.enplanements <- function() {
   return(dts)
 }
 
-compile.faa.enplanement.hub <- function(type) { # options: large or peer
-  dts <- compile.faa.enplanements()
-  
-  if (type == "large") {
-    # large hubs
-    lghubs <- unique(dts[year == max(year) & Hub == "L", .(RO, ST, Locid)]) # current large hubs data table
-    lgdf <- dts[year == max(year) & Hub == "L", select(.SD, Rank:SL)] # current large hub 'template' You can use dplyr methods within data.table!
-    dts2 <- copy(dts)
-    dtss <- dts2[lghubs, on = c("RO", "ST", "Locid")] # isolate large hubs data
-  } else if (type == "peer") {
-    plh <- c("DEN", "SFO", "SEA", "CLT", "PHX", "MSP", "BOS", "BWI", "SAN", "TPA", "PDX") # Locid
-    plhubs <- unique(dts[year == max(year) & Locid %in% plh, .(RO, ST, Locid)]) # peer large hubs data table
-    lgdf <- dts[year == max(year) & Locid %in% plh, select(.SD, Rank:SL)] # current large hub 'template' You can use dplyr methods within data.table!
-    dts2 <- copy(dts)
-    dtss <- dts2[plhubs, on = c("RO", "ST", "Locid")] # isolate large hubs data
-  }
-  ldts <- dtss[, lapply(.SD, sum), .SDcols = c("enplanements"), by = .(RO, ST, Locid, year)] # reconcile data
-  ldts[lgdf, on = c("RO", "ST", "Locid"), `:=` (Rank = i.Rank, Locid = i.Locid, City = i.City, Airportname = i.Airportname, SL = i.SL)] # join data
-  ldtsc <- dcast.data.table(ldts, Rank + RO + ST + Locid + City + Airportname + SL ~ paste0("cy", year), value.var = "enplanements")
-  # calculate % change
-  cycols <- colnames(ldtsc)[grep("\\d+", colnames(ldtsc))]
-  cycols1 <- c(tail(cycols, -1), cycols[length(cycols)])
-  cycols2 <- c(head(cycols, -1), "cy2010")
-  cyname <- paste0("share_", cycols1, "-", cycols2)
-  dtcalc <- ldtsc[, (cyname) := mapply(function(x, y) (.SD[[x]]-.SD[[y]])/.SD[[y]], cycols1, cycols2, SIMPLIFY = F)]
-  # calculate ranks for most recent and post-decade % change
-  rankcols  <- colnames(dtcalc)[(length(colnames(dtcalc))-1):length(colnames(dtcalc))]
-  rankcolsnm <- paste0("rank_", rankcols)
-  dtcalcrank <- dtcalc[, (rankcolsnm) := mapply(function(x) rank(-.SD[[x]]), rankcols, SIMPLIFY = F)]
-}
+# compile.faa.enplanement.hub <- function(type) { # options: large or peer
+#   dts <- compile.faa.enplanements()
+#   
+#   if (type == "large") {
+#     # large hubs
+#     lghubs <- unique(dts[year == max(year) & Hub == "L", .(RO, ST, Locid)]) # current large hubs data table
+#     lgdf <- dts[year == max(year) & Hub == "L", select(.SD, Rank:SL)] # current large hub 'template' You can use dplyr methods within data.table!
+#     dts2 <- copy(dts)
+#     dtss <- dts2[lghubs, on = c("RO", "ST", "Locid")] # isolate large hubs data
+#   } else if (type == "peer") {
+#     plh <- c("DEN", "SFO", "SEA", "CLT", "PHX", "MSP", "BOS", "BWI", "SAN", "TPA", "PDX") # Locid
+#     plhubs <- unique(dts[year == max(year) & Locid %in% plh, .(RO, ST, Locid)]) # peer large hubs data table
+#     lgdf <- dts[year == max(year) & Locid %in% plh, select(.SD, Rank:SL)] # current large hub 'template' You can use dplyr methods within data.table!
+#     dts2 <- copy(dts)
+#     dtss <- dts2[plhubs, on = c("RO", "ST", "Locid")] # isolate large hubs data
+#   }
+#   ldts <- dtss[, lapply(.SD, sum), .SDcols = c("enplanements"), by = .(RO, ST, Locid, year)] # reconcile data
+#   ldts[lgdf, on = c("RO", "ST", "Locid"), `:=` (Rank = i.Rank, Locid = i.Locid, City = i.City, Airportname = i.Airportname, SL = i.SL)] # join data
+#   ldtsc <- dcast.data.table(ldts, Rank + RO + ST + Locid + City + Airportname + SL ~ paste0("cy", year), value.var = "enplanements")
+#   # calculate % change
+#   cycols <- colnames(ldtsc)[grep("\\d+", colnames(ldtsc))]
+#   cycols1 <- c(tail(cycols, -1), cycols[length(cycols)])
+#   cycols2 <- c(head(cycols, -1), "cy2010")
+#   cyname <- paste0("share_", cycols1, "-", cycols2)
+#   dtcalc <- ldtsc[, (cyname) := mapply(function(x, y) (.SD[[x]]-.SD[[y]])/.SD[[y]], cycols1, cycols2, SIMPLIFY = F)]
+#   # calculate ranks for most recent and post-decade % change
+#   rankcols  <- colnames(dtcalc)[(length(colnames(dtcalc))-1):length(colnames(dtcalc))]
+#   rankcolsnm <- paste0("rank_", rankcols)
+#   dtcalcrank <- dtcalc[, (rankcolsnm) := mapply(function(x) rank(-.SD[[x]]), rankcols, SIMPLIFY = F)]
+# }
 
 # Cargo
 compile.faa.cargo <- function() {
@@ -88,7 +88,7 @@ compile.faa.cargo <- function() {
     }
     newcols <- c(newcols, "landed_weight")
     setnames(dt, oldcols, newcols)
-    trimcols <- c("Locid", "RO", "State", "City", "Airportname", "SL", "Hub")
+    trimcols <- c("Locid", "RO", "ST", "City", "Airportname", "SL", "Hub")
     dtn <- dt[!is.na(Hub), ..newcols
               ][, `:=` (year = fileyr,
                         Rank = str_trim(Rank) %>% as.numeric,
@@ -100,15 +100,57 @@ compile.faa.cargo <- function() {
   return(dts)
 }
 
+compile.faa.hub <- function(dataset = c("enplanements", "cargo"), type = c("large", "peer")) {
+  if (dataset == "enplanements") {
+    dts <- compile.faa.enplanements()
+    cols <- c("enplanements")
+  } else if (dataset == "cargo") {
+    dts <- compile.faa.cargo()
+    cols <- c("landed_weight")
+  }
+ 
+  if (type == "large") {
+    # large hubs
+    lghubs <- unique(dts[year == max(year) & Hub == "L", .(RO, ST, Locid)]) # current large hubs data table
+    lgdf <- dts[year == max(year) & Hub == "L", select(.SD, Rank:SL)] # current large hub 'template' You can use dplyr methods within data.table!
+    dts2 <- copy(dts)
+    dtss <- dts2[lghubs, on = c("Locid")] # isolate large hubs data 
+  } else if (type == "peer") {
+    plh <- c("DEN", "SFO", "SEA", "CLT", "PHX", "MSP", "BOS", "BWI", "SAN", "TPA", "PDX") # Locid
+    plhubs <- unique(dts[year == max(year) & Locid %in% plh, .(RO, ST, Locid)]) # peer large hubs data table
+    lgdf <- dts[year == max(year) & Locid %in% plh, select(.SD, Rank:SL)] # current large hub 'template' You can use dplyr methods within data.table!
+    dts2 <- copy(dts)
+    dtss <- dts2[plhubs, on = c("Locid")] # isolate large hubs data
+  }
+  ldts <- dtss[, lapply(.SD, sum), .SDcols = cols, by = .(Locid, year)] # reconcile data
+  ldts[lgdf, on = c("Locid"), `:=` (Rank = i.Rank, RO = i.RO, ST = i.ST, City = i.City, Airportname = i.Airportname, SL = i.SL)] # join data
+  ldtsc <- dcast.data.table(ldts, Rank + RO + ST + Locid + City + Airportname + SL ~ paste0("cy", year), value.var = cols)
+  # calculate % change
+  cycols <- colnames(ldtsc)[grep("\\d+", colnames(ldtsc))]
+  cycols1 <- c(tail(cycols, -1), cycols[length(cycols)])
+  cycols2 <- c(head(cycols, -1), "cy2010")
+  cyname <- paste0("share_", cycols1, "-", cycols2)
+  dtcalc <- ldtsc[, (cyname) := mapply(function(x, y) (.SD[[x]]-.SD[[y]])/.SD[[y]], cycols1, cycols2, SIMPLIFY = F)]
+  # calculate ranks for most recent and post-decade % change
+  rankcols  <- colnames(dtcalc)[(length(colnames(dtcalc))-1):length(colnames(dtcalc))]
+  rankcolsnm <- paste0("rank_", rankcols)
+  dtcalcrank <- dtcalc[, (rankcolsnm) := mapply(function(x) rank(-.SD[[x]]), rankcols, SIMPLIFY = F)]
+}
+
+
 ```
 
-```{r Excel Prep}
-
-ldt <- compile.faa.enplanement.hub("large")
-pldt <- compile.faa.enplanement.hub("peer")
+```{r}
+# ldt <- compile.faa.cargo.hub("Large")
 ```
 
-```{r Excel Export}
+```{r Enplanements Excel Prep}
+
+ldt <- compile.faa.hub("enplanements", "large")
+pldt <- compile.faa.hub("enplanements", "peer")
+```
+
+```{r Enplanements Excel Export}
 # option: write to excel file. Run chunk
 dtlist <- list(LargeHubs = ldt, PeerLargeHubs = pldt)
 enplane.wb <- createWorkbook()
