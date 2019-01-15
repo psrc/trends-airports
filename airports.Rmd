@@ -3,7 +3,7 @@ title: "Airports"
 output: html_notebook
 ---
 
-```{r}
+```{r Functions, include=FALSE}
 library(data.table)
 library(tidyverse)
 library(openxlsx)
@@ -57,14 +57,58 @@ compile.faa.enplanement.hub <- function(type) { # options: large or peer
   rankcolsnm <- paste0("rank_", rankcols)
   dtcalcrank <- dtcalc[, (rankcolsnm) := mapply(function(x) rank(-.SD[[x]]), rankcols, SIMPLIFY = F)]
 }
+
+# Cargo
+compile.faa.cargo <- function() {
+  header.list <- list(Rank = "Rank",
+                      Locid = "Locid",
+                      RO = c("RO", "FAA.Region"),
+                      ST = c("State", "ST"),
+                      City = "City",
+                      Airportname = "Airport.Name",
+                      SL = c("S/L", "Svc Lvl", "Svc.Lvl", "Airport.Category"),
+                      Hub = "Hub")
+  header.list.flat <- flatten_chr(header.list)
+  efiles <- list.files(dir, pattern = "-cargo-airports.xlsx", full.names = T)
+  dts <- NULL
+  for (efile in efiles) {
+    fileyrabr <- basename(efile) %>% str_extract("\\d+")
+    fileyr <- fileyrabr %>% paste0("20", .)
+    dt <- read.xlsx(efile) %>% as.data.table
+    # select colnames in headerlist and rename
+    oldcols <- c(colnames(dt)[colnames(dt) %in% header.list.flat], colnames(dt)[str_which(colnames(dt), paste0(".*", fileyrabr, ".*Landed\\.Weight"))])
+    newcols <- c()
+    for (i in 1:(length(oldcols)-1)) {
+      does.exist <- map(header.list, ~has_element( .x, oldcols[i]))
+      does.exist.flat <- flatten_lgl(does.exist)
+      if (any(does.exist.flat)) {
+        newcol <- names(header.list)[which(does.exist == T)]
+        newcols <- c(newcols, newcol)
+      }
+    }
+    newcols <- c(newcols, "landed_weight")
+    setnames(dt, oldcols, newcols)
+    trimcols <- c("Locid", "RO", "State", "City", "Airportname", "SL", "Hub")
+    dtn <- dt[!is.na(Hub), ..newcols
+              ][, `:=` (year = fileyr,
+                        Rank = str_trim(Rank) %>% as.numeric,
+                        landed_weight = str_replace_all(landed_weight, ",", "") %>% str_trim %>% as.numeric)
+                ][, (trimcols) := mapply(function(x) str_trim(.SD[[x]]), trimcols, SIMPLIFY = F)]
+    
+    ifelse(is.null(dts), dts <- dtn, dts <- rbindlist(list(dts, dtn), use.names = T))
+  }
+  return(dts)
+}
+
 ```
 
-```{r}
+```{r Excel Prep}
+
 ldt <- compile.faa.enplanement.hub("large")
 pldt <- compile.faa.enplanement.hub("peer")
 ```
 
-```{r}
+```{r Excel Export}
 # option: write to excel file. Run chunk
 dtlist <- list(LargeHubs = ldt, PeerLargeHubs = pldt)
 enplane.wb <- createWorkbook()
