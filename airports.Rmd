@@ -9,6 +9,7 @@ library(tidyverse)
 library(openxlsx)
 
 dir <- "C:/Users/CLam/Desktop/trends-airports/Data"
+# dir <- "Y:/Perf Trends/Active_Trends/SeaTac_Airport/Data"
 
 # Enplanements
 compile.faa.enplanements <- function() {
@@ -26,37 +27,6 @@ compile.faa.enplanements <- function() {
   }
   return(dts)
 }
-
-# compile.faa.enplanement.hub <- function(type) { # options: large or peer
-#   dts <- compile.faa.enplanements()
-#   
-#   if (type == "large") {
-#     # large hubs
-#     lghubs <- unique(dts[year == max(year) & Hub == "L", .(RO, ST, Locid)]) # current large hubs data table
-#     lgdf <- dts[year == max(year) & Hub == "L", select(.SD, Rank:SL)] # current large hub 'template' You can use dplyr methods within data.table!
-#     dts2 <- copy(dts)
-#     dtss <- dts2[lghubs, on = c("RO", "ST", "Locid")] # isolate large hubs data
-#   } else if (type == "peer") {
-#     plh <- c("DEN", "SFO", "SEA", "CLT", "PHX", "MSP", "BOS", "BWI", "SAN", "TPA", "PDX") # Locid
-#     plhubs <- unique(dts[year == max(year) & Locid %in% plh, .(RO, ST, Locid)]) # peer large hubs data table
-#     lgdf <- dts[year == max(year) & Locid %in% plh, select(.SD, Rank:SL)] # current large hub 'template' You can use dplyr methods within data.table!
-#     dts2 <- copy(dts)
-#     dtss <- dts2[plhubs, on = c("RO", "ST", "Locid")] # isolate large hubs data
-#   }
-#   ldts <- dtss[, lapply(.SD, sum), .SDcols = c("enplanements"), by = .(RO, ST, Locid, year)] # reconcile data
-#   ldts[lgdf, on = c("RO", "ST", "Locid"), `:=` (Rank = i.Rank, Locid = i.Locid, City = i.City, Airportname = i.Airportname, SL = i.SL)] # join data
-#   ldtsc <- dcast.data.table(ldts, Rank + RO + ST + Locid + City + Airportname + SL ~ paste0("cy", year), value.var = "enplanements")
-#   # calculate % change
-#   cycols <- colnames(ldtsc)[grep("\\d+", colnames(ldtsc))]
-#   cycols1 <- c(tail(cycols, -1), cycols[length(cycols)])
-#   cycols2 <- c(head(cycols, -1), "cy2010")
-#   cyname <- paste0("share_", cycols1, "-", cycols2)
-#   dtcalc <- ldtsc[, (cyname) := mapply(function(x, y) (.SD[[x]]-.SD[[y]])/.SD[[y]], cycols1, cycols2, SIMPLIFY = F)]
-#   # calculate ranks for most recent and post-decade % change
-#   rankcols  <- colnames(dtcalc)[(length(colnames(dtcalc))-1):length(colnames(dtcalc))]
-#   rankcolsnm <- paste0("rank_", rankcols)
-#   dtcalcrank <- dtcalc[, (rankcolsnm) := mapply(function(x) rank(-.SD[[x]]), rankcols, SIMPLIFY = F)]
-# }
 
 # Cargo
 compile.faa.cargo <- function() {
@@ -137,33 +107,34 @@ compile.faa.hub <- function(dataset = c("enplanements", "cargo"), type = c("larg
   dtcalcrank <- dtcalc[, (rankcolsnm) := mapply(function(x) rank(-.SD[[x]]), rankcols, SIMPLIFY = F)]
 }
 
+export.faa.excel <- function(dataset = c("enplanements", "cargo")) {
+  if (dataset == "enplanements") {
+    dtlist <- list(LargeHubs = compile.faa.hub("enplanements", "large"), PeerLargeHubs = compile.faa.hub("enplanements", "peer"))
+    newfilenm <- "PassEnplanementsbyAirport_"
+  } else if (dataset == "cargo") {
+    dtlist <- list(LargeHubs = compile.faa.hub("cargo", "large"), PeerLargeHubs = compile.faa.hub("cargo", "peer"))
+    newfilenm <- "CargobyAirport_"
+  }
+  wb <- createWorkbook()
+  for (d in 1:length(dtlist)) {
+    addWorksheet(wb, names(dtlist)[d])
+    modifyBaseFont(wb, fontSize = 10, fontName = "Segoe UI Semilight")
+    pct <- createStyle(numFmt="0%")
+    num <- createStyle(numFmt = "#,##0")
+    writeData(wb, names(dtlist)[d], dtlist[[d]])
+    addStyle(wb, names(dtlist)[d], style = pct, cols = str_which(colnames(dtlist[[d]]), "^share_"), rows = c(2:(nrow(dtlist[[d]])+1)), gridExpand = T)
+    addStyle(wb, names(dtlist)[d], style = num, cols = str_which(colnames(dtlist[[d]]), "^cy"), rows = c(2:(nrow(dtlist[[d]])+1)), gridExpand = T, stack = T)
+    saveWorkbook(wb, file = file.path(dir, paste0(newfilenm, Sys.Date(), ".xlsx")), overwrite = T)
+  }
+  cat("\nData exported to excel\n")
 
-```
-
-```{r}
-# ldt <- compile.faa.cargo.hub("Large")
-```
-
-```{r Enplanements Excel Prep}
-
-ldt <- compile.faa.hub("enplanements", "large")
-pldt <- compile.faa.hub("enplanements", "peer")
-```
-
-```{r Enplanements Excel Export}
-# option: write to excel file. Run chunk
-dtlist <- list(LargeHubs = ldt, PeerLargeHubs = pldt)
-enplane.wb <- createWorkbook()
-for (d in 1:length(dtlist)) {
-  addWorksheet(enplane.wb, names(dtlist)[d])
-  modifyBaseFont(enplane.wb, fontSize = 10, fontName = "Segoe UI Semilight")
-  pct <- createStyle(numFmt="0%")
-  num <- createStyle(numFmt = "#,##0")
-  writeData(enplane.wb, names(dtlist)[d], dtlist[[d]])
-  addStyle(enplane.wb, names(dtlist)[d], style = pct, cols = str_which(colnames(dtlist[[d]]), "^share_"), rows = c(2:(nrow(dtlist[[d]])+1)), gridExpand = T)
-  addStyle(enplane.wb, names(dtlist)[d], style = num, cols = str_which(colnames(dtlist[[d]]), "^cy"), rows = c(2:(nrow(dtlist[[d]])+1)), gridExpand = T, stack = T)
-  saveWorkbook(enplane.wb, file = file.path(dir, paste0("PassEnplanementsbyAirport_", Sys.Date(), ".xlsx")), overwrite = T)
 }
+
+```
+
+
+```{r Excel Export}
+export.faa.excel("cargo")
 
 ```
 

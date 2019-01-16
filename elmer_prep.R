@@ -62,7 +62,7 @@ compile.faa.cargo <- function() {
     }
     newcols <- c(newcols, "landed_weight")
     setnames(dt, oldcols, newcols)
-    trimcols <- c("Locid", "RO", "State", "City", "Airportname", "SL", "Hub")
+    trimcols <- c("Locid", "RO", "ST", "City", "Airportname", "SL", "Hub")
     dtn <- dt[!is.na(Hub), ..newcols
               ][, `:=` (year = fileyr,
                         Rank = str_trim(Rank) %>% as.numeric,
@@ -77,8 +77,8 @@ compile.faa.cargo <- function() {
 # dt <- compile.faa.enplanements()
 # dbWriteTable(elmer_connection, "faa_enplanements", as.data.frame(dt))
 
-dt <- compile.faa.cargo()
-dbWriteTable(elmer_connection, "faa_cargo", as.data.frame(dt))
+# dt <- compile.faa.cargo()
+# dbWriteTable(elmer_connection, "faa_cargo", as.data.frame(dt))
 
 dbDisconnect(elmer_connection)
 
