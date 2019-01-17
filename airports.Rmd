@@ -130,11 +130,59 @@ export.faa.excel <- function(dataset = c("enplanements", "cargo")) {
 
 }
 
+create.dotplot <- function(dataset = c("enplanements", "cargo"), type = c("large", "peer"), year) {
+  dt <- compile.faa.hub(dataset, type)[Locid == "SFO", City := "San Francisco"][Locid == "SEA", color := "TRUE"][Locid != "SEA", color := "FALSE"]
+  aescolx <- colnames(dt)[str_which(colnames(dt), paste0(year, "$"))]
+  aescoly <- colnames(dt)[str_which(colnames(dt), paste0("^share_cy", year, "-cy2010"))]
+  
+  g <- ggplot(dt, aes_string(x = aescolx, y = paste0("`", aescoly, "`"), color = "color")) +
+    geom_point() +
+    geom_text(aes_string(label = "Locid"), vjust= 1.5, size=4) +
+    scale_colour_manual(values = c("TRUE" = "purple", "FALSE" = "dark grey")) +
+    scale_y_continuous(labels=scales::percent) +
+    scale_x_continuous(labels=scales::comma) +
+    ylab(paste0("Growth 2010-", year)) +
+    xlab(paste(str_to_title(dataset), year)) +
+    theme(legend.position = "none", 
+          axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0)),
+          axis.title.x = element_text(margin = margin(t = 20, r = 0, b = 0, l = 0)))
+}
+
+create.barchart <- function(dataset = c("enplanements", "cargo"), type = c("large", "peer"), year) {
+  dt <- compile.faa.hub(dataset, type)[Locid == "SFO", City := "San Francisco"][Locid == "SEA", color := "TRUE"][Locid != "SEA", color := "FALSE"]
+  aescolx <- colnames(dt)[str_which(colnames(dt), paste0(year, "$"))]
+  aescoly <- colnames(dt)[str_which(colnames(dt), paste0("^share_cy", year, "-cy2010"))]
+  
+  g <- ggplot(dt, aes_string(x = "City", y = paste0("`", aescoly, "`"), color = "color", fill = "color")) +
+    geom_col() +
+    scale_colour_manual(values = c("TRUE" = "purple", "FALSE" = "dark grey")) +
+    scale_fill_manual(values = c("TRUE" = "purple", "FALSE" = "dark grey")) +
+    scale_y_continuous(labels=scales::percent) +
+    ylab(paste0(str_to_title(dataset), " Growth 2010-", year)) +
+    theme(legend.position = "none",
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0)),
+          axis.title.x = element_text(margin = margin(t = 20, r = 0, b = 0, l = 0)))
+}
+
 ```
 
+```{r Excel Export, include=FALSE}
+# To export to excel, run Functions and this chunk
+export.faa.excel("cargo") # cargo or enplanements
+```
 
-```{r Excel Export}
-export.faa.excel("cargo")
+```{r Dotplot}
+
+g <- create.dotplot("enplanements", "peer", 2017)
+print(g)
+
+```
+
+```{r Barchart}
+
+b <- create.barchart("enplanements", "peer", 2017)
+print(b)
 
 ```
 
