@@ -2,6 +2,8 @@ library(data.table)
 library(openxlsx)
 library(tidyverse)
 
+data.dir <- "C:/Users/CLam/Desktop/trends-airports/Data"
+# dir <- "Y:/Perf Trends/Active_Trends/SeaTac_Airport/Data"
 
 # functions ---------------------------------------------------------------
 
@@ -11,7 +13,7 @@ library(tidyverse)
 download.faa <- function(year) { 
   yearabr <- substr(year, 3, 4)
 
-  settings <- list(dir = "C:/Users/CLam/Desktop/trends-airports/Data",
+  settings <- list(dir = data.dir,
                    file.name.enp = paste0("cy", yearabr, "-commercial-service-enplanements.xlsx"),
                    file.name.cargo = paste0("cy", yearabr, "-cargo-airports.xlsx"),
                    url ="https://www.faa.gov/airports/planning_capacity/passenger_allcargo_stats/passenger/media/"
@@ -29,10 +31,24 @@ download.faa <- function(year) {
  cat("\nSuccessfully downloaded enplanements and cargo data\n")
 }
 
+# SeaTac airport (monthly)
+# pass 2 digit month string and 4 digit year string; it will download and standardize filename for PCO files
+download.seatac <- function(month, year) {
+  settings <- list(dir = data.dir,
+                   file.name = paste0("traf-ops-", month, year, ".xls"),
+                   url ="https://www.portseattle.org/pos/StatisticalReports/Public/"
+  )
+  
+  local.file <- settings$file.name
+  url.file <- paste0(settings$url, settings$file.name)
+  download.file(url.file, file.path(settings$dir, local.file), mode="wb")
+  
+  cat("\nSuccessfully downloaded SeaTac Airport's Passenger, Cargo, Operations data\n")
+}
 
 # download ----------------------------------------------------------------
 
 
 download.faa("2017") # downloads both enplanements and cargo
-
+download.seatac("11", "2018") # downloads PCO (traf-ops-MMYYYY) file
 

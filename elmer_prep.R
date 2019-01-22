@@ -2,7 +2,8 @@ library(data.table)
 library(tidyverse)
 library(odbc)
 
-dir <- "C:/Users/CLam/Desktop/trends-airports/Data"
+# dir <- "C:/Users/CLam/Desktop/trends-airports/Data"
+dir <- "Y:/Perf Trends/Active_Trends/SeaTac_Airport/Data"
 
 elmer_connection <- dbConnect(odbc(),
                               driver = "SQL Server",
@@ -73,6 +74,27 @@ compile.faa.cargo <- function() {
   }
   return(dts)
 }
+
+# Initialize SeaTac Monthly Data
+compile.seatac.pco <- function() {
+  efiles <- list.files(dir, pattern = "traf-ops-", full.names = T)
+  dts <- NULL
+  for (efile in efiles) {
+    fname <- basename(efile)
+    month.num <- str_extract(fname, "\\d{2}")
+    year <- str_extract(fname, "\\d{4}(?=\\.x)")
+    dt <- read_excel(efile, skip =3)
+    setDT(dt)
+    cols <- c("..1", colnames(dt)[str_which(colnames(dt), paste0("^", month.name[as.numeric(month.num)],".*", year))])
+    t <- dt[!is.na(get(eval(cols[2]))), ..cols][, `:=` (date = ymd(paste(year, month.num, 1)))]
+    setnames(t, cols, c("type", "value"))
+    t[, type := str_to_lower(type)]
+    ifelse(is.null(dts), dts <- t, dts <- rbindlist(list(dts, t), use.names = T))
+  }
+  return(dts)
+}
+
+# dt <- compile.seatac.pco()
 
 # dt <- compile.faa.enplanements()
 # dbWriteTable(elmer_connection, "faa_enplanements", as.data.frame(dt))
