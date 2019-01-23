@@ -78,7 +78,7 @@ compile.faa.hub <- function(dataset = c("enplanements", "cargo"), type = c("larg
     dts <- compile.faa.cargo()
     cols <- c("landed_weight")
   }
- 
+  
   if (type == "large") {
     # large hubs
     lghubs <- unique(dts[year == max(year) & Hub == "L", .(RO, ST, Locid)]) # current large hubs data table
@@ -96,13 +96,17 @@ compile.faa.hub <- function(dataset = c("enplanements", "cargo"), type = c("larg
   ldts[lgdf, on = c("Locid"), `:=` (Rank = i.Rank, RO = i.RO, ST = i.ST, City = i.City, Airportname = i.Airportname, SL = i.SL)] # join data
   ldtsc <- dcast.data.table(ldts, Rank + RO + ST + Locid + City + Airportname + SL ~ paste0("cy", year), value.var = cols)
   # calculate % change
+  start.decade <- 2010
+  end.year <- max(ldts$year) %>% as.numeric
+  growth.years <- seq(start.decade + 2, end.year - 1) %>% paste0("cy", .)
   cycols <- colnames(ldtsc)[grep("\\d+", colnames(ldtsc))]
-  cycols1 <- c(tail(cycols, -1), cycols[length(cycols)])
-  cycols2 <- c(head(cycols, -1), "cy2010")
+  cycols1 <- c(tail(cycols, -1), cycols[length(cycols)], growth.years)
+  cycols2 <- c(head(cycols, -1), rep("cy2010", length(growth.years) + 1))
   cyname <- paste0("share_", cycols1, "-", cycols2)
   dtcalc <- ldtsc[, (cyname) := mapply(function(x, y) (.SD[[x]]-.SD[[y]])/.SD[[y]], cycols1, cycols2, SIMPLIFY = F)]
   # calculate ranks for most recent and post-decade % change
-  rankcols  <- colnames(dtcalc)[(length(colnames(dtcalc))-1):length(colnames(dtcalc))]
+  rankcols <- c(colnames(dtcalc)[str_which(colnames(dtcalc), paste0("share_", max(cycols), "-", cycols[length(cycols)-1]))],
+                colnames(dtcalc)[str_which(colnames(dtcalc), paste0("share_", max(cycols), "-", "cy", start.decade))])
   rankcolsnm <- paste0("rank_", rankcols)
   dtcalcrank <- dtcalc[, (rankcolsnm) := mapply(function(x) rank(-.SD[[x]]), rankcols, SIMPLIFY = F)]
 }
@@ -132,7 +136,7 @@ export.faa.excel <- function(dataset = c("enplanements", "cargo")) {
 
 create.dotplot <- function(dataset = c("enplanements", "cargo"), type = c("large", "peer"), year) {
   dt <- compile.faa.hub(dataset, type)[Locid == "SFO", City := "San Francisco"][Locid == "SEA", color := "TRUE"][Locid != "SEA", color := "FALSE"]
-  aescolx <- colnames(dt)[str_which(colnames(dt), paste0(year, "$"))]
+    aescolx <- colnames(dt)[str_which(colnames(dt), paste0("^cy", year, "$"))]
   aescoly <- colnames(dt)[str_which(colnames(dt), paste0("^share_cy", year, "-cy2010"))]
   
   g <- ggplot(dt, aes_string(x = aescolx, y = paste0("`", aescoly, "`"), color = "color")) +
@@ -150,14 +154,15 @@ create.dotplot <- function(dataset = c("enplanements", "cargo"), type = c("large
 
 create.barchart <- function(dataset = c("enplanements", "cargo"), type = c("large", "peer"), year) {
   dt <- compile.faa.hub(dataset, type)[Locid == "SFO", City := "San Francisco"][Locid == "SEA", color := "TRUE"][Locid != "SEA", color := "FALSE"]
-  aescolx <- colnames(dt)[str_which(colnames(dt), paste0(year, "$"))]
+  # aescolx <- colnames(dt)[str_which(colnames(dt), paste0(year, "$"))]
   aescoly <- colnames(dt)[str_which(colnames(dt), paste0("^share_cy", year, "-cy2010"))]
   
-  g <- ggplot(dt, aes_string(x = "City", y = paste0("`", aescoly, "`"), color = "color", fill = "color")) +
+  g <- ggplot(dt, aes_string(x = "Locid", y = paste0("`", aescoly, "`"), color = "color", fill = "color")) +
     geom_col() +
     scale_colour_manual(values = c("TRUE" = "purple", "FALSE" = "dark grey")) +
     scale_fill_manual(values = c("TRUE" = "purple", "FALSE" = "dark grey")) +
     scale_y_continuous(labels=scales::percent) +
+    xlab("Airport Code") +
     ylab(paste0(str_to_title(dataset), " Growth 2010-", year)) +
     theme(legend.position = "none",
           axis.text.x = element_text(angle = 45, hjust = 1),
@@ -168,13 +173,13 @@ create.barchart <- function(dataset = c("enplanements", "cargo"), type = c("larg
 ```
 
 ```{r Excel Export, include=FALSE}
-# To export to excel, run Functions and this chunk
+# To export to excel, run Functions chunk and this chunk
 export.faa.excel("cargo") # cargo or enplanements
 ```
 
 ```{r Dotplot}
 
-g <- create.dotplot("enplanements", "peer", 2017)
+g <- create.dotplot("enplanements", "large", 2015)
 print(g)
 
 ```
