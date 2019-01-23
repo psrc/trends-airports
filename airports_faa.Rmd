@@ -154,10 +154,10 @@ create.dotplot <- function(dataset = c("enplanements", "cargo"), type = c("large
 
 create.barchart <- function(dataset = c("enplanements", "cargo"), type = c("large", "peer"), year) {
   dt <- compile.faa.hub(dataset, type)[Locid == "SFO", City := "San Francisco"][Locid == "SEA", color := "TRUE"][Locid != "SEA", color := "FALSE"]
-  # aescolx <- colnames(dt)[str_which(colnames(dt), paste0(year, "$"))]
   aescoly <- colnames(dt)[str_which(colnames(dt), paste0("^share_cy", year, "-cy2010"))]
+  dt[, levels := get(eval(aescoly))][, Locid_sort := factor(Locid, levels = dt$Locid[order(dt$levels)])] # standardized colname for levels to use for factor column
   
-  g <- ggplot(dt, aes_string(x = "Locid", y = paste0("`", aescoly, "`"), color = "color", fill = "color")) +
+  g <- ggplot(dt, aes_string(x = "Locid_sort", y = paste0("`", aescoly, "`"), color = "color", fill = "color")) +
     geom_col() +
     scale_colour_manual(values = c("TRUE" = "purple", "FALSE" = "dark grey")) +
     scale_fill_manual(values = c("TRUE" = "purple", "FALSE" = "dark grey")) +
@@ -186,7 +186,7 @@ print(g)
 
 ```{r Barchart}
 
-b <- create.barchart("enplanements", "peer", 2017)
+b <- create.barchart("enplanements", "peer", 2012)
 print(b)
 
 ```
