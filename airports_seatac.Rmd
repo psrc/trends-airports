@@ -12,7 +12,8 @@ library(readxl)
 dir <- "Y:/Perf Trends/Active_Trends/SeaTac_Airport/Data"
 
 compile.seatac.pco <- function() {
-  efiles <- list.files(dir, pattern = "traf-ops-", full.names = T)
+  # current
+  efiles <- list.files(dir, pattern = "traf-ops-\\d{6}", full.names = T)
   dts <- NULL
   for (efile in efiles) {
     fname <- basename(efile)
@@ -26,7 +27,47 @@ compile.seatac.pco <- function() {
     t[, type := str_to_lower(type)]
     ifelse(is.null(dts), dts <- t, dts <- rbindlist(list(dts, t), use.names = T))
   }
-  return(dts)
+  # archive 2015-16
+  t <- dt <- NULL
+  fname <- "traf-ops-2015-2016.xlsx"
+  snames <- getSheetNames(file.path(dir, fname))
+  ops1 <- snames[str_which(snames, "^Ops.*15")]
+  ops2 <- snames[str_which(snames, "^Ops.*(Jan|Feb).*16")]
+  allops <- c(ops1, ops2)
+  # read-in each spreadsheet
+  arc.dts <- NULL
+  for (i in 1:length(allops)) {
+    month.num <- match(str_extract(allops[i], "(?<=Ops_)\\w{3}"), month.abb)
+    year <- paste0("20", str_extract(allops[i], "\\d+$"))
+
+    dt <- read_excel(file.path(dir, fname), sheet = allops[i], skip = 3)
+    setDT(dt)
+    cols <- c("..1", colnames(dt)[str_which(colnames(dt), paste0("^", month.name[as.numeric(month.num)],".*", year))])
+    t <- dt[!is.na(get(eval(cols[2]))), ..cols][, `:=` (date = lubridate::ymd(paste(year, month.num, 1)))]
+    setnames(t, cols, c("type", "value"))
+    t[, type := str_to_lower(type)]
+    t <- t[!is.na(type)]
+    ifelse(is.null(arc.dts), arc.dts <- t, arc.dts <- rbindlist(list(arc.dts, t), use.names = T))
+  }
+  # archive 2014
+  t <- dt <- NULL
+  arc.dts2 <- NULL
+  for (i in 1:length(ops1)) {
+    month.num <- match(str_extract(ops1[i], "(?<=Ops_)\\w{3}"), month.abb)
+    year <- "2014"
+    
+    dt <- read_excel(file.path(dir, fname), sheet = ops1[i], skip = 3)
+    setDT(dt)
+    cols <- c("..1", colnames(dt)[str_which(colnames(dt), paste0("^", month.name[as.numeric(month.num)],".*", year))])
+    t <- dt[!is.na(get(eval(cols[2]))), ..cols][, `:=` (date = lubridate::ymd(paste(year, month.num, 1)))]
+    setnames(t, cols, c("type", "value"))
+    t[, type := str_to_lower(type)]
+    t <- t[!is.na(type)]
+    ifelse(is.null(arc.dts2), arc.dts2 <- t, arc.dts2 <- rbindlist(list(arc.dts2, t), use.names = T))
+    
+  }
+  alldts <- rbindlist(list(arc.dts2, arc.dts, dts), use.names = T)
+  return(alldts)
 }
 
 create.seatac.subtable <- function(category = c("passenger", "all cargo", "all freight cargo", "domestic freight cargo", 
@@ -57,7 +98,7 @@ create.seatac.subtable <- function(category = c("passenger", "all cargo", "all f
 cast.tbl.compute.totals <- function(table) {
   tot <- table[, lapply(.SD, sum), .SDcols = "value", by = year][, month_abr := "Total"]
   dt <- rbindlist(list(table, tot), use.names = T, fill = T)
-  t <- dcast.data.table(dt, month_abr ~ year, value.var = "value")
+  t <- dcast.data.table(dt, month_abr ~ paste0("cy", year), value.var = "value")
   setnames(t, "month_abr", "Month")
   return(t)
 }
@@ -77,18 +118,20 @@ export.seatac.excel <- function() {
     writeData(wb, names(dtlist)[d], dtlist[[d]])
     addStyle(wb, names(dtlist)[d], 
              style = num, 
-             cols = str_which(colnames(dtlist[[d]]), "^\\d+"), 
+             cols = str_which(colnames(dtlist[[d]]), "^cy\\d+"), 
              rows = c(2:(nrow(dtlist[[d]])+1)), gridExpand = T, stack = T)
     saveWorkbook(wb, file = file.path(dir, paste0(newfilenm, Sys.Date(), ".xlsx")), overwrite = T)
   }
   cat("\nData exported to excel\n")
 }
 
+
+
 ```
 
 ```{r Excel Export}
 
-export.seatac.excel()
+suppressMessages(export.seatac.excel())
 
 ```
 
