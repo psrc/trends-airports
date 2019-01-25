@@ -1,5 +1,5 @@
 ---
-title: "Airports"
+title: "Airports -- FAA"
 output: html_notebook
 ---
 
@@ -179,14 +179,14 @@ export.faa.excel("cargo") # cargo or enplanements
 
 ```{r Dotplot}
 
-g <- create.dotplot("enplanements", "large", 2015)
+g <- create.dotplot("enplanements", "large", 2014) # charts % growth since 2010
 print(g)
 
 ```
 
 ```{r Barchart}
 
-b <- create.barchart("enplanements", "peer", 2012)
+b <- create.barchart("enplanements", "large", 2014) # charts % growth since 2010
 print(b)
 
 ```
