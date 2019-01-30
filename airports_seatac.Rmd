@@ -8,6 +8,7 @@ output: html_notebook
 library(data.table)
 library(tidyverse)
 library(readxl)
+library(plotly)
 
 dir <- "Y:/Perf Trends/Active_Trends/SeaTac_Airport/Data"
 
@@ -79,16 +80,16 @@ create.seatac.subtable <- function(category = c("passenger", "all cargo", "all f
                      "international freight cargo" = "subtotal - international air freight",
                      "mail cargo" = "air mail grand total")
   
-  dt <- compile.seatac.pco()
+  dt <- suppressMessages(compile.seatac.pco())
   type.desc <- category.dict[category]
   
   if (totals == "monthly") {
-    t <- dt[type == eval(type.desc), lapply(.SD, sum), .SDcols = "value", by = .(month(date), year(date))]
+    t <- dt[type %in% eval(type.desc), lapply(.SD, sum), .SDcols = "value", by = .(type, month(date), year(date))]
     t$month_abr <- factor(month.abb[t$month], levels = month.abb)
     t$year <- factor(t$year, levels = sort(unique(t$year)))
     t <- t[order(year, month)]
   } else {
-    t <- dt[type == eval(type.desc), lapply(.SD, sum), .SDcols = "value", by = .(year(date))]
+    t <- dt[type %in% eval(type.desc), lapply(.SD, sum), .SDcols = "value", by = .(type, year(date))]
     t$year <- factor(t$year, levels = sort(unique(t$year)))
     t <- t[order(year)]
   }
@@ -125,13 +126,70 @@ export.seatac.excel <- function() {
   cat("\nData exported to excel\n")
 }
 
+create.monthly.area.chart.by.year <- function(category) {
+  dt <- create.seatac.subtable(category, "monthly")
+  dt[, year := factor(year, levels = rev(unique(dt$year)))]
+  
+  # labels
+  if (category == "passenger") category <- "passengers" 
+  # unit
+  ifelse(category != "passengers", label <- "Metric Tons", label <- "Passengers")
+  
+  g <- ggplot(dt, aes(x = month_abr, y = value, group = year, fill = year)) +
+    geom_area(position = "identity", aes(alpha = .5), show.legend =FALSE) +
+    ylab(label) + 
+    xlab(str_to_title(category)) +
+    scale_y_continuous(labels=scales::comma)
 
+  ggplotly(g)
+}
+
+create.barchart.by.month <- function(category) {
+  dt <- create.seatac.subtable(category, "monthly")
+  t <- dt[, year := as.numeric(as.character(year))
+        ][year %in% c((max(year)-1), max(year)), 
+          ][, year := factor(year, levels = c((max(dt$year)-1), max(dt$year)))]
+  
+  # set colors
+  mycolors <- c("grey", "purple")
+  names(mycolors) <-  levels(t$year)
+  
+  # labels
+  if (category == "passenger") category <- "passengers" 
+  # unit
+  ifelse(category != "passengers", label <- "Metric Tons", label <- "Passengers")
+  
+  g <- ggplot(t, aes(x = month_abr, y = value, color = year, fill = year, group = year)) +
+    geom_col(width = .7, position = "dodge") + 
+    ylab(label) + 
+    xlab(str_to_title(category)) +
+    scale_color_manual(values = mycolors) +
+    scale_fill_manual(values = mycolors) +
+    scale_y_continuous(labels=scales::comma) +
+    theme(aspect.ratio = 3/5, 
+          axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0)),
+          axis.title.x = element_text(margin = margin(t = 20, r = 0, b = 0, l = 0)))
+  g
+}
 
 ```
 
 ```{r Excel Export}
 
 suppressMessages(export.seatac.excel())
+
+```
+
+The arguments for visual functions are: "passenger", "all cargo", "all freight cargo", "domestic freight cargo", "international freight cargo", "mail cargo"
+```{r Area Chart by Month and Year (ggplotly)} 
+
+create.monthly.area.chart.by.year("passenger")
+
+```
+
+```{r Barchart by Month and Current/Previous Years}
+
+create.barchart.by.month("mail cargo")
 
 ```
 
