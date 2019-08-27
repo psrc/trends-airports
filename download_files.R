@@ -1,9 +1,11 @@
+#  This script contains functions to download FAA data and SeaTac Airport's PCO data
+
 library(data.table)
 library(openxlsx)
 library(tidyverse)
 
-data.dir <- "C:/Users/CLam/Desktop/trends-airports/Data"
-# dir <- "Y:/Perf Trends/Active_Trends/SeaTac_Airport/Data"
+# data.dir <- "C:/Users/CLam/Desktop/trends-airports/Data"
+data.dir <- "Y:/Perf Trends/Active_Trends/SeaTac_Airport/Data"
 
 # functions ---------------------------------------------------------------
 
@@ -34,21 +36,26 @@ download.faa <- function(year) {
 # SeaTac airport (monthly)
 # pass 2 digit month string and 4 digit year string; it will download and standardize filename for PCO files
 download.seatac <- function(month, year) {
-  settings <- list(dir = data.dir,
-                   file.name = paste0("traf-ops-", month, year, ".xls"),
-                   url ="https://www.portseattle.org/pos/StatisticalReports/Public/"
+  tryCatch(
+    {settings <- list(dir = data.dir,
+                      file.name = paste0("traf-ops-", month, year, ".xls"),
+                      url ="https://www.portseattle.org/pos/StatisticalReports/Public/"
+    )
+    
+    local.file <- settings$file.name
+    url.file <- paste0(settings$url, settings$file.name)
+    download.file(url.file, file.path(settings$dir, local.file), mode="wb")
+    },
+    error=function(cond) {
+      message("File does not exist")
+    }
   )
-  
-  local.file <- settings$file.name
-  url.file <- paste0(settings$url, settings$file.name)
-  download.file(url.file, file.path(settings$dir, local.file), mode="wb")
-  
-  cat("\nSuccessfully downloaded SeaTac Airport's Passenger, Cargo, Operations data\n")
+ 
 }
 
-# download ----------------------------------------------------------------
+# download examples-----------------------------------------------------------
 
 
-download.faa("2017") # downloads both enplanements and cargo
-download.seatac("11", "2018") # downloads PCO (traf-ops-MMYYYY) file
+# download.faa("2017") # downloads both enplanements and cargo
+# download.seatac("11", "2018") # downloads PCO (traf-ops-MMYYYY) file
 

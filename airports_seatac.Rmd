@@ -72,9 +72,18 @@ compile.seatac.pco <- function() {
   return(alldts)
 }
 
-create.seatac.subtable <- function(category = c("passenger", "all cargo", "all freight cargo", "domestic freight cargo", 
-                                                "international freight cargo", "mail cargo"), totals = c("monthly", "annual")) {
-  category.dict <- c("passenger" = "passenger grand total",
+create.seatac.subtable <- function(category = c("all passengers", 
+                                                "domestic passengers", 
+                                                "international passengers", 
+                                                "all cargo", 
+                                                "all freight cargo", 
+                                                "domestic freight cargo", 
+                                                "international freight cargo", 
+                                                "mail cargo"), 
+                                   totals = c("monthly", "annual")) {
+  category.dict <- c("all passengers" = "passenger grand total",
+                     "domestic passengers" = "subtotal - domestic passengers",
+                     "international passengers" = "subtotal - international passengers",
                      "all cargo" = "cargo grand total",
                      "all freight cargo" = "air freight grand total",
                      "domestic freight cargo" = "subtotal - domestic air freight",
@@ -107,7 +116,7 @@ cast.tbl.compute.totals <- function(table) {
 
 export.seatac.excel <- function() {
   dt <- compile.seatac.pco()
-  categories <- c("passenger", "all cargo", "all freight cargo", "domestic freight cargo", "international freight cargo", "mail cargo")
+  categories <- c("all passengers", "domestic passengers", "international passengers", "all cargo", "all freight cargo", "domestic freight cargo", "international freight cargo", "mail cargo")
   create.seatac.subtable.monthly <- partial(create.seatac.subtable, totals = "monthly")
   dtlist <- map(categories, create.seatac.subtable.monthly) %>% map(cast.tbl.compute.totals)
   names(dtlist) <- lapply(categories, function(x) str_replace_all(x, " ", "_"))
@@ -132,7 +141,7 @@ create.monthly.area.chart.by.year <- function(category) {
   dt[, year := factor(year, levels = rev(unique(dt$year)))]
   
   # labels
-  if (category == "passenger") category <- "passengers" 
+  if (category == "all passengers") category <- "passengers" 
   # unit
   ifelse(category != "passengers", label <- "Metric Tons", label <- "Passengers")
   
@@ -156,7 +165,7 @@ create.barchart.by.month <- function(category) {
   names(mycolors) <-  levels(t$year)
   
   # labels
-  if (category == "passenger") category <- "passengers" 
+  if (category == "all passengers") category <- "passengers" 
   # unit
   ifelse(category != "passengers", label <- "Metric Tons", label <- "Passengers")
   
@@ -181,10 +190,10 @@ suppressMessages(export.seatac.excel())
 
 ```
 
-The arguments for visual functions are: "passenger", "all cargo", "all freight cargo", "domestic freight cargo", "international freight cargo", "mail cargo"
+The arguments for visual functions are: "all passengers", "domestic passengers", "international passengers", "all cargo", "all freight cargo", "domestic freight cargo", "international freight cargo", "mail cargo"
 ```{r Area Chart by Month and Year (ggplotly)} 
 
-create.monthly.area.chart.by.year("passenger")
+create.monthly.area.chart.by.year("all passengers")
 
 ```
 
