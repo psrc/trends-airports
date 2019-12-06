@@ -1,3 +1,13 @@
+db.connect <- function(adatabase) {
+  # connect to the SQL server
+  elmer_connection <- dbConnect(odbc(),
+                                driver = "SQL Server",
+                                server = "AWS-PROD-SQL\\COHO",
+                                database = adatabase,
+                                trusted_connection = "yes"
+  )
+}
+
 read.faa <- function(year, datatype = c("enplanements", "cargo")) {
   # This function is intended for appending new data to what exists in Elmer
   # it will read into cache directly without downloading
