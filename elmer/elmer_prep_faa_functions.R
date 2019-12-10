@@ -1,3 +1,5 @@
+library(tidyverse)
+
 db.connect <- function(adatabase) {
   # connect to the SQL server
   elmer_connection <- dbConnect(odbc(),
@@ -33,4 +35,40 @@ clean.faa.enplanements <- function(year, table) {
   dt[, enplanements := as.numeric(enplanements)]
 
   return(dt)
+}
+
+clean.faa.cargo <- function(year, table) {
+  # This function will munge the file read-in
+  
+  t <- copy(table)
+  header.list <- list(Locid = "Locid",
+                      RO = c("RO", "FAA.Region"),
+                      ST = c("State", "ST"),
+                      City = "City",
+                      Airportname = "Airport.Name",
+                      SL = c("S/L", "Svc Lvl", "Svc.Lvl", "Airport.Category"),
+                      Hub = "Hub")
+  header.list.flat <- flatten_chr(header.list)
+  
+  yearabr <- substr(year, 3, 4)
+
+  # select colnames in headerlist and rename if necessary
+  oldcols <- c(colnames(t)[colnames(t) %in% header.list.flat], colnames(t)[str_which(colnames(t), paste0(".*", yearabr, ".*Landed\\.Weight"))])
+  newcols <- c()
+  for (i in 1:(length(oldcols)-1)) {
+    does.exist <- map(header.list, ~has_element( .x, oldcols[i]))
+    does.exist.flat <- flatten_lgl(does.exist)
+    if (any(does.exist.flat)) {
+      newcol <- names(header.list)[which(does.exist == T)]
+      newcols <- c(newcols, newcol)
+    }
+  }
+  newcols <- c(newcols, "landed_weight")
+  setnames(t, oldcols, newcols)
+  trimcols <- c("Locid", "RO", "ST", "City", "Airportname", "SL", "Hub")
+  dt.clean <- t[, ..newcols
+            ][, `:=` (year = year,
+                      landed_weight = str_replace_all(landed_weight, ",", "") %>% str_trim %>% as.numeric)
+              ][, (trimcols) := mapply(function(x) str_trim(.SD[[x]]), trimcols, SIMPLIFY = F)]
+  return(dt.clean)
 }
