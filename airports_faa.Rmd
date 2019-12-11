@@ -3,7 +3,7 @@ title: "Airports -- FAA"
 output: html_notebook
 ---
 
-```{r Read and Compile Functions, include=FALSE}
+```{r Functions, include=FALSE}
 library(data.table)
 library(tidyverse)
 library(openxlsx)
@@ -85,14 +85,6 @@ compile.faa.hub <- function(dataset = c("enplanements", "cargo"), type = c("larg
   rankcolsnm <- paste0("rank_", rankcols)
   dtcalcrank <- dtcalc[, (rankcolsnm) := mapply(function(x) rank(-.SD[[x]]), rankcols, SIMPLIFY = F)]
 }
-
-# MISSING 2014 CARGO DATA!!!!!!!!!!!!!!!!!!!!
-# test_dts <- read.faa.table("Elmer", "faa.airport_dims", "faa.cargo_facts")
-# test <- compile.faa.hub("cargo", "large")
-
-```
-
-``` {r Create Functions, include=FALSE}
 
 export.faa.excel <- function(dataset = c("enplanements", "cargo"), outdir) {
   if (dataset == "enplanements") {
