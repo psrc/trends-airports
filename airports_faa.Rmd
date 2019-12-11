@@ -3,107 +3,82 @@ title: "Airports -- FAA"
 output: html_notebook
 ---
 
-```{r Functions, include=FALSE}
+```{r Read and Compile Functions, include=FALSE}
 library(data.table)
 library(tidyverse)
 library(openxlsx)
+library(odbc)
+library(DBI)
 
-# dir <- "C:/Users/CLam/Desktop/trends-airports/Data"
-dir <- "Y:/Perf Trends/Active_Trends/SeaTac_Airport/Data"
-
-# Enplanements
-compile.faa.enplanements <- function() {
-  efiles <- list.files(dir, pattern = "-commercial-service-enplanements.xlsx", full.names = T)
-  dts <- NULL
-  for (efile in efiles) {
-    fileyrabr <- basename(efile) %>% str_extract("\\d+")
-    fileyr <- fileyrabr %>% paste0("20", .)
-    dt <- read.xlsx(efile) %>% as.data.table
-    cols <- c(colnames(dt)[1:8], colnames(dt)[grep(fileyrabr, colnames(dt))])
-    dtn <- dt[!is.na(Hub), ..cols][, year := fileyr]
-    colnames(dtn) <- c("Rank", "RO", "ST", "Locid", "City", "Airportname", "SL", "Hub", "enplanements", "year")
-    dtn[, enplanements := as.numeric(enplanements)]
-    ifelse(is.null(dts), dts <- dtn, dts <- rbindlist(list(dts, dtn), use.names = T))
-  }
-  return(dts)
+db.connect <- function(adatabase) {
+  # connect to the SQL server
+  elmer_connection <- dbConnect(odbc(),
+                                driver = "SQL Server",
+                                server = "AWS-PROD-SQL\\COHO",
+                                database = adatabase,
+                                trusted_connection = "yes"
+  )
 }
 
-# Cargo
-compile.faa.cargo <- function() {
-  header.list <- list(Rank = "Rank",
-                      Locid = "Locid",
-                      RO = c("RO", "FAA.Region"),
-                      ST = c("State", "ST"),
-                      City = "City",
-                      Airportname = "Airport.Name",
-                      SL = c("S/L", "Svc Lvl", "Svc.Lvl", "Airport.Category"),
-                      Hub = "Hub")
-  header.list.flat <- flatten_chr(header.list)
-  efiles <- list.files(dir, pattern = "-cargo-airports.xlsx", full.names = T)
-  dts <- NULL
-  for (efile in efiles) {
-    fileyrabr <- basename(efile) %>% str_extract("\\d+")
-    fileyr <- fileyrabr %>% paste0("20", .)
-    dt <- read.xlsx(efile) %>% as.data.table
-    # select colnames in headerlist and rename
-    oldcols <- c(colnames(dt)[colnames(dt) %in% header.list.flat], colnames(dt)[str_which(colnames(dt), paste0(".*", fileyrabr, ".*Landed\\.Weight"))])
-    newcols <- c()
-    for (i in 1:(length(oldcols)-1)) {
-      does.exist <- map(header.list, ~has_element( .x, oldcols[i]))
-      does.exist.flat <- flatten_lgl(does.exist)
-      if (any(does.exist.flat)) {
-        newcol <- names(header.list)[which(does.exist == T)]
-        newcols <- c(newcols, newcol)
-      }
-    }
-    newcols <- c(newcols, "landed_weight")
-    setnames(dt, oldcols, newcols)
-    trimcols <- c("Locid", "RO", "ST", "City", "Airportname", "SL", "Hub")
-    dtn <- dt[!is.na(Hub), ..newcols
-              ][, `:=` (year = fileyr,
-                        Rank = str_trim(Rank) %>% as.numeric,
-                        landed_weight = str_replace_all(landed_weight, ",", "") %>% str_trim %>% as.numeric)
-                ][, (trimcols) := mapply(function(x) str_trim(.SD[[x]]), trimcols, SIMPLIFY = F)]
-    
-    ifelse(is.null(dts), dts <- dtn, dts <- rbindlist(list(dts, dtn), use.names = T))
-  }
-  return(dts)
+read.faa.table <- function(adatabase, atable_dim, atable_fact) {
+  # read either the cargo or enplanements table from Elmer
+  
+  query_str <- paste("SELECT a.*, b.* FROM", atable_dim, "as a", "JOIN", atable_fact, 
+                    "as b ON a.airport_dim_id = b.airport_dim_id;") 
+  conn <- db.connect(adatabase)
+  dt <- dbGetQuery(conn, SQL(query_str))
+  dbDisconnect(conn)
+  setDT(dt)
+  id_cols <- str_subset(colnames(dt), "dim|fact_id$")
+  filter_cols <- colnames(dt)[!(colnames(dt) %in% id_cols)]
+  filter_dt <- dt[, ..filter_cols]
+  return(filter_dt)
 }
 
 compile.faa.hub <- function(dataset = c("enplanements", "cargo"), type = c("large", "peer")) {
   if (dataset == "enplanements") {
-    dts <- compile.faa.enplanements()
+    facts <- "faa.enplanement_facts"
     cols <- c("enplanements")
   } else if (dataset == "cargo") {
-    dts <- compile.faa.cargo()
+    facts <- "faa.cargo_facts"
     cols <- c("landed_weight")
   }
   
+  dims <- "faa.airport_dims"
+  dts <- read.faa.table("Elmer", dims, facts)
+  
   if (type == "large") {
     # large hubs
-    lghubs <- unique(dts[year == max(year) & Hub == "L", .(RO, ST, Locid)]) # current large hubs data table
-    lgdf <- dts[year == max(year) & Hub == "L", select(.SD, Rank:SL)] # current large hub 'template' You can use dplyr methods within data.table!
+    lghubs <- unique(dts[data_year == max(data_year) & hub == "L", .(ro, st, loc_id)]) # current large hubs data table
+    # current large hub 'template' You can use dplyr methods within data.table!
+    lgdf <- dts[data_year == max(data_year) & hub == "L", select(.SD, ro:sl)] 
     dts2 <- copy(dts)
-    dtss <- dts2[lghubs, on = c("Locid")] # isolate large hubs data 
+    dtss <- dts2[lghubs, on = c("loc_id")] # isolate large hubs data 
   } else if (type == "peer") {
     plh <- c("DEN", "SFO", "SEA", "CLT", "PHX", "MSP", "BOS", "BWI", "SAN", "TPA", "PDX") # Locid
-    plhubs <- unique(dts[year == max(year) & Locid %in% plh, .(RO, ST, Locid)]) # peer large hubs data table
-    lgdf <- dts[year == max(year) & Locid %in% plh, select(.SD, Rank:SL)] # current large hub 'template' You can use dplyr methods within data.table!
+    plhubs <- unique(dts[data_year == max(data_year) & loc_id %in% plh, .(ro, st, loc_id)]) # peer large hubs data table
+    # current large hub 'template' You can use dplyr methods within data.table!
+    lgdf <- dts[data_year == max(data_year) & loc_id %in% plh, select(.SD, ro:sl)] 
     dts2 <- copy(dts)
-    dtss <- dts2[plhubs, on = c("Locid")] # isolate large hubs data
+    dtss <- dts2[plhubs, on = c("loc_id")] # isolate large hubs data
   }
-  ldts <- dtss[, lapply(.SD, sum), .SDcols = cols, by = .(Locid, year)] # reconcile data
-  ldts[lgdf, on = c("Locid"), `:=` (Rank = i.Rank, RO = i.RO, ST = i.ST, City = i.City, Airportname = i.Airportname, SL = i.SL)] # join data
-  ldtsc <- dcast.data.table(ldts, Rank + RO + ST + Locid + City + Airportname + SL ~ paste0("cy", year), value.var = cols)
+  
+  ldts <- dtss[, lapply(.SD, sum), .SDcols = cols, by = .(loc_id, data_year)] # reconcile data
+  
+  # join data
+  ldts[lgdf, on = c("loc_id"), `:=` (ro = i.ro, st = i.st, city_name = i.city_name, airport_name = i.airport_name, sl = i.sl)] 
+  ldtsc <- dcast.data.table(ldts, ro + st + loc_id + city_name + airport_name + sl ~ paste0("cy", data_year), value.var = cols)
+  
   # calculate % change
   start.decade <- 2010
-  end.year <- max(ldts$year) %>% as.numeric
+  end.year <- max(ldts$data_year) %>% as.numeric
   growth.years <- seq(start.decade + 2, end.year - 1) %>% paste0("cy", .)
   cycols <- colnames(ldtsc)[grep("\\d+", colnames(ldtsc))]
   cycols1 <- c(tail(cycols, -1), cycols[length(cycols)], growth.years)
   cycols2 <- c(head(cycols, -1), rep("cy2010", length(growth.years) + 1))
   cyname <- paste0("share_", cycols1, "-", cycols2)
   dtcalc <- ldtsc[, (cyname) := mapply(function(x, y) (.SD[[x]]-.SD[[y]])/.SD[[y]], cycols1, cycols2, SIMPLIFY = F)]
+  
   # calculate ranks for most recent and post-decade % change
   rankcols <- c(colnames(dtcalc)[str_which(colnames(dtcalc), paste0("share_", max(cycols), "-", cycols[length(cycols)-1]))],
                 colnames(dtcalc)[str_which(colnames(dtcalc), paste0("share_", max(cycols), "-", "cy", start.decade))])
@@ -111,7 +86,15 @@ compile.faa.hub <- function(dataset = c("enplanements", "cargo"), type = c("larg
   dtcalcrank <- dtcalc[, (rankcolsnm) := mapply(function(x) rank(-.SD[[x]]), rankcols, SIMPLIFY = F)]
 }
 
-export.faa.excel <- function(dataset = c("enplanements", "cargo")) {
+# MISSING 2014 CARGO DATA!!!!!!!!!!!!!!!!!!!!
+# test_dts <- read.faa.table("Elmer", "faa.airport_dims", "faa.cargo_facts")
+# test <- compile.faa.hub("cargo", "large")
+
+```
+
+``` {r Create Functions, include=FALSE}
+
+export.faa.excel <- function(dataset = c("enplanements", "cargo"), outdir) {
   if (dataset == "enplanements") {
     dtlist <- list(LargeHubs = compile.faa.hub("enplanements", "large"), PeerLargeHubs = compile.faa.hub("enplanements", "peer"))
     newfilenm <- "PassEnplanementsbyAirport_"
@@ -128,20 +111,22 @@ export.faa.excel <- function(dataset = c("enplanements", "cargo")) {
     writeData(wb, names(dtlist)[d], dtlist[[d]])
     addStyle(wb, names(dtlist)[d], style = pct, cols = str_which(colnames(dtlist[[d]]), "^share_"), rows = c(2:(nrow(dtlist[[d]])+1)), gridExpand = T)
     addStyle(wb, names(dtlist)[d], style = num, cols = str_which(colnames(dtlist[[d]]), "^cy"), rows = c(2:(nrow(dtlist[[d]])+1)), gridExpand = T, stack = T)
-    saveWorkbook(wb, file = file.path(dir, paste0(newfilenm, Sys.Date(), ".xlsx")), overwrite = T)
+    saveWorkbook(wb, file = file.path(outdir, paste0(newfilenm, Sys.Date(), ".xlsx")), overwrite = T)
   }
   cat("\nData exported to excel\n")
 
 }
 
 create.dotplot <- function(dataset = c("enplanements", "cargo"), type = c("large", "peer"), year) {
-  dt <- compile.faa.hub(dataset, type)[Locid == "SFO", City := "San Francisco"][Locid == "SEA", color := "TRUE"][Locid != "SEA", color := "FALSE"]
-    aescolx <- colnames(dt)[str_which(colnames(dt), paste0("^cy", year, "$"))]
+  dt <- compile.faa.hub(dataset, type)[loc_id == "SFO", city_name := "San Francisco"
+                                       ][loc_id == "SEA", color := "TRUE"
+                                         ][loc_id != "SEA", color := "FALSE"]
+  aescolx <- colnames(dt)[str_which(colnames(dt), paste0("^cy", year, "$"))]
   aescoly <- colnames(dt)[str_which(colnames(dt), paste0("^share_cy", year, "-cy2010"))]
   
   g <- ggplot(dt, aes_string(x = aescolx, y = paste0("`", aescoly, "`"), color = "color")) +
     geom_point() +
-    geom_text(aes_string(label = "Locid"), vjust= 1.5, size=4) +
+    geom_text(aes_string(label = "loc_id"), vjust= 1.5, size=4) +
     scale_colour_manual(values = c("TRUE" = "purple", "FALSE" = "dark grey")) +
     scale_y_continuous(labels=scales::percent) +
     scale_x_continuous(labels=scales::comma) +
@@ -153,9 +138,12 @@ create.dotplot <- function(dataset = c("enplanements", "cargo"), type = c("large
 }
 
 create.barchart <- function(dataset = c("enplanements", "cargo"), type = c("large", "peer"), year) {
-  dt <- compile.faa.hub(dataset, type)[Locid == "SFO", City := "San Francisco"][Locid == "SEA", color := "TRUE"][Locid != "SEA", color := "FALSE"]
+  dt <- compile.faa.hub(dataset, type)[loc_id == "SFO", City := "San Francisco"
+                                       ][loc_id == "SEA", color := "TRUE"
+                                         ][loc_id != "SEA", color := "FALSE"]
   aescoly <- colnames(dt)[str_which(colnames(dt), paste0("^share_cy", year, "-cy2010"))]
-  dt[, levels := get(eval(aescoly))][, Locid_sort := factor(Locid, levels = dt$Locid[order(dt$levels)])] # standardized colname for levels to use for factor column
+  # standardized colname for levels to use for factor column
+  dt[, levels := get(eval(aescoly))][, Locid_sort := factor(loc_id, levels = dt$loc_id[order(dt$levels)])] 
   
   g <- ggplot(dt, aes_string(x = "Locid_sort", y = paste0("`", aescoly, "`"), color = "color", fill = "color")) +
     geom_col() +
@@ -172,21 +160,23 @@ create.barchart <- function(dataset = c("enplanements", "cargo"), type = c("larg
 
 ```
 
-```{r Excel Export, include=FALSE}
+```{r Excel Export, eval=T, include=FALSE}
 # To export to excel, run Functions chunk and this chunk
-export.faa.excel("cargo") # cargo or enplanements
+outdir <- "C:/Users/CLam/Desktop/trends-airports/Data"
+export.faa.excel("cargo", outdir) # cargo or enplanements
+export.faa.excel("enplanements", outdir)
 ```
 
 ```{r Dotplot}
 
-g <- create.dotplot("enplanements", "large", 2017) # charts % growth since 2010
+g <- create.dotplot("enplanements", "large", 2018) # charts % growth since 2010
 print(g)
 
 ```
 
 ```{r Barchart}
 
-b <- create.barchart("enplanements", "large", 2017) # charts % growth since 2010
+b <- create.barchart("enplanements", "large", 2018) # charts % growth since 2010
 print(b)
 
 ```

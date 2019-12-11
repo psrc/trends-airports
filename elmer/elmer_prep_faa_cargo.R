@@ -6,7 +6,7 @@ library(openxlsx)
 library(odbc)
 library(DBI)
 
-year <- 2018
+year <- 2014
 stgname <- "faa_cargo"
 
 source(file.path("..", "Desktop", "trends-airports", "elmer","elmer_prep_faa_functions.R"))
