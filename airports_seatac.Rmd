@@ -12,6 +12,8 @@ library(plotly)
 library(openxlsx)
 
 dir <- "Y:/Perf Trends/Active_Trends/SeaTac_Airport/Data"
+# dir <- "C:/Users/clam/Desktop/trends-airports/Data"
+# outdir <- "C:/Users/clam/Desktop/trends-airports/Data"
 
 compile.seatac.pco <- function() {
   # current
@@ -23,7 +25,7 @@ compile.seatac.pco <- function() {
     year <- str_extract(fname, "\\d{4}(?=\\.x)")
     dt <- read_excel(efile, skip =3)
     setDT(dt)
-    cols <- c("..1", colnames(dt)[str_which(colnames(dt), paste0("^", month.name[as.numeric(month.num)],".*", year))])
+    cols <- c("...1", colnames(dt)[str_which(colnames(dt), paste0("^", month.name[as.numeric(month.num)],".*", year))])
     t <- dt[!is.na(get(eval(cols[2]))), ..cols][, `:=` (date = lubridate::ymd(paste(year, month.num, 1)))]
     setnames(t, cols, c("type", "value"))
     t[, type := str_to_lower(type)]
@@ -44,7 +46,7 @@ compile.seatac.pco <- function() {
 
     dt <- read_excel(file.path(dir, fname), sheet = allops[i], skip = 3)
     setDT(dt)
-    cols <- c("..1", colnames(dt)[str_which(colnames(dt), paste0("^", month.name[as.numeric(month.num)],".*", year))])
+    cols <- c("...1", colnames(dt)[str_which(colnames(dt), paste0("^", month.name[as.numeric(month.num)],".*", year))])
     t <- dt[!is.na(get(eval(cols[2]))), ..cols][, `:=` (date = lubridate::ymd(paste(year, month.num, 1)))]
     setnames(t, cols, c("type", "value"))
     t[, type := str_to_lower(type)]
@@ -60,7 +62,7 @@ compile.seatac.pco <- function() {
     
     dt <- read_excel(file.path(dir, fname), sheet = ops1[i], skip = 3)
     setDT(dt)
-    cols <- c("..1", colnames(dt)[str_which(colnames(dt), paste0("^", month.name[as.numeric(month.num)],".*", year))])
+    cols <- c("...1", colnames(dt)[str_which(colnames(dt), paste0("^", month.name[as.numeric(month.num)],".*", year))])
     t <- dt[!is.na(get(eval(cols[2]))), ..cols][, `:=` (date = lubridate::ymd(paste(year, month.num, 1)))]
     setnames(t, cols, c("type", "value"))
     t[, type := str_to_lower(type)]
@@ -131,7 +133,8 @@ export.seatac.excel <- function() {
              style = num, 
              cols = str_which(colnames(dtlist[[d]]), "^cy\\d+"), 
              rows = c(2:(nrow(dtlist[[d]])+1)), gridExpand = T, stack = T)
-    saveWorkbook(wb, file = file.path(dir, paste0(newfilenm, Sys.Date(), ".xlsx")), overwrite = T)
+    # saveWorkbook(wb, file = file.path(dir, paste0(newfilenm, Sys.Date(), ".xlsx")), overwrite = T)
+    saveWorkbook(wb, file = file.path(outdir, paste0(newfilenm, Sys.Date(), ".xlsx")), overwrite = T)
   }
   cat("\nData exported to excel\n")
 }
