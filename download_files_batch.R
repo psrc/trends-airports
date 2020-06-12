@@ -1,4 +1,4 @@
-# This script will batch download FAA or SeaTac Airport files
+# A 'Sandbox' script to batch download select SeaTac Airport files
 
 library(purrr)
 source("C:/Users/CLam/Desktop/trends-airports/download_files.R") # source download_files.R located on your local machine
@@ -7,7 +7,7 @@ source("C:/Users/CLam/Desktop/trends-airports/download_files.R") # source downlo
 # SeaTac Airport ----------------------------------------------------------
 
 
-download.seatac.months.in.cy <- partial(download.seatac, year = "2019") # downloads PCO (traf-ops-MMYYYY) file
-months <- sprintf("%02.0f", 1:12) # second argument represents the months. Edit for the months of interest
+download.seatac.months.in.cy <- partial(download.seatac, year = "2020") # downloads PCO (traf-ops-MMYYYY) file
+months <- sprintf("%02.0f", 1:4) # second argument represents the months. Edit for the months of interest
 
 walk(months, download.seatac.months.in.cy)
