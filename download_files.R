@@ -4,8 +4,8 @@ library(data.table)
 library(openxlsx)
 library(tidyverse)
 
-# data.dir <- "C:/Users/CLam/Desktop/trends-airports/Data"
-data.dir <- "Y:/Perf Trends/Active_Trends/SeaTac_Airport/Data"
+data.dir <- "C:/Users/CLam/Desktop/trends-airports/Data"
+# data.dir <- "Y:/Perf Trends/Active_Trends/SeaTac_Airport/Data"
 
 # functions ---------------------------------------------------------------
 
@@ -55,7 +55,7 @@ download.seatac <- function(month, year) {
 
 # download examples-----------------------------------------------------------
 
-
+# Remember to comment out lines after use if you decide to use download_files_batch.R
 # download.faa("2017") # downloads both enplanements and cargo
-# download.seatac("11", "2018") # downloads PCO (traf-ops-MMYYYY) file
+# download.seatac("04", "2020") # downloads PCO (traf-ops-MMYYYY) file
 
