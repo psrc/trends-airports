@@ -58,24 +58,25 @@ dt <- wrangle.seatac.pco(df)
 # QC ----------------------------------------------------------------------
 
 group.cols <- paste0("type_group_", 1:3)
-
+qc.dt <- NULL
 for (group.col in group.cols) {
   if (group.col == "type_group_1") {
     # group 1, dom + intl pass, dom + intl freight
-    print(dt[str_detect(get(eval(group.col)), ".*passengers$")|str_detect(get(eval(group.col)), ".*freight$"), 
+    t <- dt[str_detect(get(eval(group.col)), ".*passengers$")|str_detect(get(eval(group.col)), ".*freight$"), 
              .(estimate = sum(value)), by = .(month(get("date")), year(get("date")), group = get(eval(group.col)))]
-          )
+          
   } else if (group.col == "type_group_2") {
     # group 2, mail, freight
-    print(dt[str_detect(get(eval(group.col)), ".*mail$")|str_detect(get(eval(group.col)), ".*freight$"), 
+    t <- dt[str_detect(get(eval(group.col)), ".*mail$")|str_detect(get(eval(group.col)), ".*freight$"), 
              .(estimate = sum(value)), by = .(month(get("date")), year(get("date")), group = get(eval(group.col)))]
-    )
+    
   } else {
     # group 3, grand total
-    print(dt[, .(estimate = sum(value)), by = .(month(get("date")), year(get("date")), group = get(eval(group.col)))])
+   t <- dt[, .(estimate = sum(value)), by = .(month(get("date")), year(get("date")), group = get(eval(group.col)))]
   }
+  ifelse(is.null(qc.dt), qc.dt <- t, qc.dt <- rbindlist(list(qc.dt, t), use.names = T))
 }  
-  
+
 
 
 # Export to Elmer ---------------------------------------------------------
