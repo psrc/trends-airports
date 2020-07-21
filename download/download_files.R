@@ -3,8 +3,9 @@
 library(data.table)
 library(openxlsx)
 library(tidyverse)
+library(here)
 
-data.dir <- "C:/Users/CLam/Desktop/trends-airports/Data"
+data.dir <- here("Data") # to local Data subdirectory
 # data.dir <- "Y:/Perf Trends/Active_Trends/SeaTac_Airport/Data"
 
 # functions ---------------------------------------------------------------
