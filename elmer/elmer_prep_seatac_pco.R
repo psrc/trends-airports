@@ -1,8 +1,10 @@
-# This script preps Seatac Airport PCO data not in Elmer to Elmer
+# This script preps Seatac Airport PCO data (from local drive) that's not in Elmer to Elmer
 library(data.table)
 library(tidyverse)
+library(odbc)
+library(DBI)
 
-# see download_files.R and or download_files_batch.R to download necessary files
+# see download_files.R and or download_files_batch.R to download necessary files onto local drive
 
 # ensure dir contains only the files/data to be appended to Elmer 
 dir <- "C:/Users/clam/Desktop/trends-airports/Data"
@@ -57,27 +59,48 @@ dt <- wrangle.seatac.pco(df)
 
 # QC ----------------------------------------------------------------------
 
-group.cols <- paste0("type_group_", 1:3)
-qc.dt <- NULL
-for (group.col in group.cols) {
-  if (group.col == "type_group_1") {
-    # group 1, dom + intl pass, dom + intl freight
-    t <- dt[str_detect(get(eval(group.col)), ".*passengers$")|str_detect(get(eval(group.col)), ".*freight$"), 
-             .(estimate = sum(value)), by = .(month(get("date")), year(get("date")), group = get(eval(group.col)))]
-          
-  } else if (group.col == "type_group_2") {
-    # group 2, mail, freight
-    t <- dt[str_detect(get(eval(group.col)), ".*mail$")|str_detect(get(eval(group.col)), ".*freight$"), 
-             .(estimate = sum(value)), by = .(month(get("date")), year(get("date")), group = get(eval(group.col)))]
-    
-  } else {
-    # group 3, grand total
-   t <- dt[, .(estimate = sum(value)), by = .(month(get("date")), year(get("date")), group = get(eval(group.col)))]
+
+aggregate.data <- function(adt) {
+  # This is a QC function to check if sums equal what is reported an individual SeaTac PCO file
+  group.cols <- paste0("type_group_", 1:3)
+  
+  qc.dt <- NULL
+  for (group.col in group.cols) {
+    if (group.col == "type_group_1") {
+      # group 1, dom + intl pass, dom + intl freight
+      t <- adt[str_detect(get(eval(group.col)), ".*passengers$")|str_detect(get(eval(group.col)), ".*freight$"),
+               .(estimate = sum(value)), by = .(month(get("date")), year(get("date")), group = get(eval(group.col)))]
+
+    } else if (group.col == "type_group_2") {
+      # group 2, mail, freight
+      t <- adt[str_detect(get(eval(group.col)), ".*mail$")|str_detect(get(eval(group.col)), ".*freight$"),
+               .(estimate = sum(value)), by = .(month(get("date")), year(get("date")), group = get(eval(group.col)))]
+
+    } else {
+      # group 3, grand total
+     t <- adt[, .(estimate = sum(value)), by = .(month(get("date")), year(get("date")), group = get(eval(group.col)))]
+    }
+    ifelse(is.null(qc.dt), qc.dt <- t, qc.dt <- rbindlist(list(qc.dt, t), use.names = T))
   }
-  ifelse(is.null(qc.dt), qc.dt <- t, qc.dt <- rbindlist(list(qc.dt, t), use.names = T))
-}  
+ return(qc.dt) 
+} 
+
+# open qc.dt to cross-check against downloaded files
+qc.dt <- aggregate.data(dt)
+test <- qc.dt[month == 6]
 
 
+# Append to Elmer.Sandbox ----------------------------------------------------
+
+
+# elmer_connection <- dbConnect(odbc(),
+#                               driver = "SQL Server",
+#                               server = "AWS-PROD-SQL\\COHO",
+#                               database = "Sandbox",
+#                               trusted_connection = "yes")
+# 
+# dbAppendTable(elmer_connection, "seatac_pco", as.data.frame(dt))
+# dbDisconnect(elmer_connection)
 
 # Export to Elmer ---------------------------------------------------------
 
