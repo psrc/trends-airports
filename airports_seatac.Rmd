@@ -108,36 +108,36 @@ create.seatac.subtable <- function(category = c("all passengers",
   return(t)
 }
 
-cast.tbl.compute.totals <- function(table) {
-  tot <- table[, lapply(.SD, sum), .SDcols = "value", by = year][, month_abr := "Total"]
-  dt <- rbindlist(list(table, tot), use.names = T, fill = T)
-  t <- dcast.data.table(dt, month_abr ~ paste0("cy", year), value.var = "value")
-  setnames(t, "month_abr", "Month")
-  return(t)
-}
+# cast.tbl.compute.totals <- function(table) {
+#   tot <- table[, lapply(.SD, sum), .SDcols = "value", by = year][, month_abr := "Total"]
+#   dt <- rbindlist(list(table, tot), use.names = T, fill = T)
+#   t <- dcast.data.table(dt, month_abr ~ paste0("cy", year), value.var = "value")
+#   setnames(t, "month_abr", "Month")
+#   return(t)
+# }
 
-export.seatac.excel <- function() {
-  dt <- compile.seatac.pco()
-  categories <- c("all passengers", "domestic passengers", "international passengers", "all cargo", "all freight cargo", "domestic freight cargo", "international freight cargo", "mail cargo")
-  create.seatac.subtable.monthly <- partial(create.seatac.subtable, totals = "monthly")
-  dtlist <- map(categories, create.seatac.subtable.monthly) %>% map(cast.tbl.compute.totals)
-  names(dtlist) <- lapply(categories, function(x) str_replace_all(x, " ", "_"))
-  newfilenm <- "Airport_Passenger_Cargo_Counts_"
-  wb <- createWorkbook()
-  for (d in 1:length(dtlist)) {
-    addWorksheet(wb, names(dtlist)[d])
-    modifyBaseFont(wb, fontSize = 10, fontName = "Segoe UI Semilight")
-    num <- createStyle(numFmt = "#,##0")
-    writeData(wb, names(dtlist)[d], dtlist[[d]])
-    addStyle(wb, names(dtlist)[d], 
-             style = num, 
-             cols = str_which(colnames(dtlist[[d]]), "^cy\\d+"), 
-             rows = c(2:(nrow(dtlist[[d]])+1)), gridExpand = T, stack = T)
-    # saveWorkbook(wb, file = file.path(dir, paste0(newfilenm, Sys.Date(), ".xlsx")), overwrite = T)
-    saveWorkbook(wb, file = file.path(outdir, paste0(newfilenm, Sys.Date(), ".xlsx")), overwrite = T)
-  }
-  cat("\nData exported to excel\n")
-}
+# export.seatac.excel <- function() {
+#   dt <- compile.seatac.pco()
+#   categories <- c("all passengers", "domestic passengers", "international passengers", "all cargo", "all freight cargo", "domestic freight cargo", "international freight cargo", "mail cargo")
+#   create.seatac.subtable.monthly <- partial(create.seatac.subtable, totals = "monthly")
+#   dtlist <- map(categories, create.seatac.subtable.monthly) %>% map(cast.tbl.compute.totals)
+#   names(dtlist) <- lapply(categories, function(x) str_replace_all(x, " ", "_"))
+#   newfilenm <- "Airport_Passenger_Cargo_Counts_"
+#   wb <- createWorkbook()
+#   for (d in 1:length(dtlist)) {
+#     addWorksheet(wb, names(dtlist)[d])
+#     modifyBaseFont(wb, fontSize = 10, fontName = "Segoe UI Semilight")
+#     num <- createStyle(numFmt = "#,##0")
+#     writeData(wb, names(dtlist)[d], dtlist[[d]])
+#     addStyle(wb, names(dtlist)[d], 
+#              style = num, 
+#              cols = str_which(colnames(dtlist[[d]]), "^cy\\d+"), 
+#              rows = c(2:(nrow(dtlist[[d]])+1)), gridExpand = T, stack = T)
+#     # saveWorkbook(wb, file = file.path(dir, paste0(newfilenm, Sys.Date(), ".xlsx")), overwrite = T)
+#     saveWorkbook(wb, file = file.path(outdir, paste0(newfilenm, Sys.Date(), ".xlsx")), overwrite = T)
+#   }
+#   cat("\nData exported to excel\n")
+# }
 
 create.monthly.area.chart.by.year <- function(category) {
   dt <- create.seatac.subtable(category, "monthly")
@@ -187,11 +187,6 @@ create.barchart.by.month <- function(category) {
 
 ```
 
-```{r Excel Export}
-
-suppressMessages(export.seatac.excel())
-
-```
 
 The arguments for visual functions are: "all passengers", "domestic passengers", "international passengers", "all cargo", "all freight cargo", "domestic freight cargo", "international freight cargo", "mail cargo"
 ```{r Area Chart by Month and Year (ggplotly)} 
@@ -202,7 +197,7 @@ create.monthly.area.chart.by.year("all passengers")
 
 ```{r Barchart by Month and Current/Previous Years}
 
-create.barchart.by.month("mail cargo")
+create.barchart.by.month("all passengers")
 
 ```
 

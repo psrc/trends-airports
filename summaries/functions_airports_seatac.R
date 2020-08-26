@@ -2,9 +2,7 @@ library(data.table)
 library(tidyverse)
 library(DBI)
 library(odbc)
-# library(readxl)
-# library(plotly)
-# library(openxlsx)
+library(openxlsx)
 
 category.dict <- c("passengers" = "all passengers",
                    "domestic passengers" ="domestic passengers",
@@ -19,7 +17,7 @@ category.dict <- c("passengers" = "all passengers",
 db.connect <- function(adatabase) {
   elmer_connection <- dbConnect(odbc(),
                                 driver = "SQL Server",
-                                server = "AWS-PROD-SQL\\COHO",
+                                server = "AWS-PROD-SQL\\SOCKEYE",
                                 database = adatabase,
                                 trusted_connection = "yes"
   )
@@ -82,10 +80,44 @@ summarise.main.types.pco <- function(atable, aggregate.by = c("month", "year")) 
 
 } 
 
+export.excel.pco <- function(outdir = 'output') {
+  if (outdir == 'output') {
+    cat("Excel file will be exported to default output subdirectory")
+  } else {
+    cat("Excel file will be exported to ", outdir)
+  }
+  
+  categories <- unname(category.dict[category.dict != 'operations'])
+  dt <- read.seatac.pco() %>% summarise.main.types.pco("month")
+  dt.tot <- dt[group_label != 'operations', lapply(.SD, sum), .SDcols = c("estimate"), by = c("year", "group_label")
+     ][, month_abr := 'Total'] 
+  dt.all <- rbindlist(list(dt, dt.tot), use.names=TRUE)
+  setnames(dt.all, c("group_label", "month_abr"), c("Group", "Month"))
+  
+  dt.cast <- dcast.data.table(dt.all, Group + Month ~ paste0("cy", year), value.var = 'estimate')
+  dt.list <- map(categories, ~dt.cast[Group == .x, ])
+  names(dt.list) <- lapply(categories, function(x) str_replace_all(x, " ", "_"))
+  
+  newfilenm <- "Airport_Passenger_Cargo_Counts_"
+  wb <- createWorkbook()
+  for (d in 1:length(dt.list)) {
+    addWorksheet(wb, names(dt.list)[d])
+    modifyBaseFont(wb, fontSize = 10, fontName = "Segoe UI Semilight")
+    num <- createStyle(numFmt = "#,##0")
+    writeData(wb, names(dt.list)[d], dt.list[[d]])
+    addStyle(wb, names(dt.list)[d],
+             style = num,
+             cols = str_which(colnames(dt.list[[d]]), "^cy\\d+"),
+             rows = c(2:(nrow(dt.list[[d]])+1)), gridExpand = T, stack = T)
+    saveWorkbook(wb, file = file.path(outdir, paste0(newfilenm, Sys.Date(), ".xlsx")), overwrite = T)
+  }
+  cat("\nData exported to excel\n")
+}
 
 # Test --------------------------------------------------------------------
 
 
-adt <- read.seatac.pco()
-adt.types.test <- summarise.main.types.pco(adt, "year")
-adt.types.test2 <- summarise.main.types.pco(adt, "month")
+# adt <- read.seatac.pco()
+# adt.types.test <- summarise.main.types.pco(adt, "year")
+# adt.types.test2 <- summarise.main.types.pco(adt, "month")
+# export.excel.pco()
