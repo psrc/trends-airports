@@ -1,0 +1,21 @@
+---
+title: "Airports -- SeaTac, PCO"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+source(here::here("functions", "functions_airports_seatac_plot.R"))
+
+# The arguments for plot functions are: "all", or a combo of: "all passengers", "domestic passengers", "international passengers", "all cargo", "all freight cargo", "domestic freight cargo", "international freight cargo", "mail cargo"
+```
+
+```{r, echo=F, fig.height=5, fig.width=10}
+line.plot.seatac.pco("all")
+# line.plot.seatac.pco(c("all passengers", "domestic passengers", "international passengers"))
+```
+
+```{r, echo=F,fig.height=5, fig.width=10}
+# bar.plot.seatac.pco("all")
+bar.plot.seatac.pco(c("all passengers", "domestic passengers", "international passengers", "all cargo"))
+
+```

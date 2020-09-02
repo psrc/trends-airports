@@ -81,10 +81,13 @@ summarise.main.types.pco <- function(atable, aggregate.by = c("month", "year")) 
 } 
 
 export.excel.pco <- function(outdir = 'output') {
+  newfilenm <- "Airport_Passenger_Cargo_Counts_"
+  full.newfilenm <- paste0("'", newfilenm, Sys.Date(), "'")
+  
   if (outdir == 'output') {
-    cat("Excel file will be exported to default output subdirectory")
+    cat("\nExcel file", full.newfilenm, "will be exported to default subfolder: output")
   } else {
-    cat("Excel file will be exported to ", outdir)
+    cat("\nExcel file", full.newfilenm, "will be exported to folder:", outdir)
   }
   
   categories <- unname(category.dict[category.dict != 'operations'])
@@ -98,7 +101,6 @@ export.excel.pco <- function(outdir = 'output') {
   dt.list <- map(categories, ~dt.cast[Group == .x, ])
   names(dt.list) <- lapply(categories, function(x) str_replace_all(x, " ", "_"))
   
-  newfilenm <- "Airport_Passenger_Cargo_Counts_"
   wb <- createWorkbook()
   for (d in 1:length(dt.list)) {
     addWorksheet(wb, names(dt.list)[d])
